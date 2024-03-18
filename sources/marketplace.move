@@ -73,8 +73,8 @@ module freelance_marketplace::marketplace {
     }
 
     public entry fun submit_work(self: &mut FreelanceGig, ctx: &mut TxContext) {
-        let freelencer = option::borrow(&self.freelancer);
-        assert!(*freelencer == tx_context::sender(ctx), EInvalidWork);
+        let freelancer = option::borrow(&self.freelancer);
+        assert!(*freelancer == tx_context::sender(ctx), EInvalidWork);
         self.workSubmitted = true;
     }
 
@@ -90,11 +90,11 @@ module freelance_marketplace::marketplace {
         let balance = balance::withdraw_all<SUI>(&mut self.escrow);
         let coin = coin::from_balance<SUI>(balance, ctx);
 
-        let freelencer = option::borrow(&self.freelancer);
+        let freelancer = option::borrow(&self.freelancer);
 
         if (resolved) {
             // Transfer funds to the freelancer
-            transfer::public_transfer(coin, *freelencer);
+            transfer::public_transfer(coin, *freelancer);
         } else {
             // Refund funds to the client
             transfer::public_transfer(coin, self.client);
@@ -106,50 +106,56 @@ module freelance_marketplace::marketplace {
         self.dispute = false;
     }
 
-    // public entry fun release_payment(gig_id: UID, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(gig.client == tx_context::sender(ctx), ENotFreelancer);
-    //     assert!(gig.workSubmitted && !gig.dispute, EInvalidWork);
+    public entry fun release_payment(self: &mut FreelanceGig, ctx: &mut TxContext) {
+        assert!(self.client == tx_context::sender(ctx), ENotFreelancer);
+        assert!(self.workSubmitted && !self.dispute, EInvalidWork);
 
-    //     // Transfer funds to the freelancer
-    //     transfer::public_transfer(gig.escrow, gig.freelancer);
+        let balance = balance::withdraw_all<SUI>(&mut self.escrow);
+        let coin = coin::from_balance<SUI>(balance, ctx);
 
-    //     // Reset gig state
-    //     gig.freelancer = 0x0;
-    //     gig.workSubmitted = false;
-    //     gig.dispute = false;
-    //     gig.escrow = balance::zero();
-    // }
+        let freelancer = option::borrow(&self.freelancer);
+        // Transfer funds to the freelancer
+        transfer::public_transfer(coin, *freelancer);
+
+        // Reset gig state
+        self.freelancer = option::none();
+        self.workSubmitted = false;
+        self.dispute = false;
+    }
 
     // // Additional functions
-    // public entry fun cancel_gig(gig_id: UID, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(gig.client == tx_context::sender(ctx) || gig.freelancer == tx_context::sender(ctx), ENotFreelancer);
-        
-    //     // Refund funds to the client if not yet paid
-    //     if (gig.freelancer != 0x0 && !gig.workSubmitted && !gig.dispute) {
-    //         transfer::public_transfer(gig.escrow, gig.client);
-    //     }
+    public entry fun cancel_gig(self: &mut FreelanceGig, ctx: &mut TxContext) {
+        let freelancer = option::borrow(&self.freelancer);
+        assert!(self.client == tx_context::sender(ctx) || *freelancer == tx_context::sender(ctx), ENotFreelancer);
 
-    //     // Reset gig state
-    //     gig.freelancer = 0x0;
-    //     gig.workSubmitted = false;
-    //     gig.dispute = false;
-    //     gig.escrow = balance::zero();
-    // }
+        let balance = balance::withdraw_all<SUI>(&mut self.escrow);
+        let coin = coin::from_balance<SUI>(balance, ctx);
 
-    // public entry fun update_gig_description(gig_id: UID, new_description: vector<u8>, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(gig.client == tx_context::sender(ctx), ENotFreelancer);
-    //     gig.description = new_description;
-    // }
+        // Refund funds to the client if not yet paid
+        if (option::is_some(&self.freelancer) && !self.workSubmitted && !self.dispute) {
+            transfer::public_transfer(coin, self.client);
+        }
+        else {
+            abort EInvalidWork
+        };
 
-    // public entry fun update_gig_price(gig_id: UID, new_price: u64, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(gig.client == tx_context::sender(ctx), ENotFreelancer);
-    //     gig.price = new_price;
-    // }
+       // Reset gig state
+        self.freelancer = option::none();
+        self.workSubmitted = false;
+        self.dispute = false;
+    }
 
+    public entry fun update_gig_description(self: &mut FreelanceGig, new_description: vector<u8>, ctx: &mut TxContext) {
+        assert!(self.client == tx_context::sender(ctx), ENotFreelancer);
+        self.description = new_description;
+    }
+
+    public entry fun update_gig_price(self: &mut FreelanceGig, new_price: u64, ctx: &mut TxContext) {
+        assert!(self.client == tx_context::sender(ctx), ENotFreelancer);
+        self.price = new_price;
+    }
+
+    // I REALLY DONT UNDERSTAND WHAT DiD YOU DO HERE 
     // public entry fun withdraw_earnings(amount: u64, ctx: &mut TxContext) {
     //     // Withdraw earnings from the freelancer's balance
     //     let freelancer_id = object::new(ctx);
@@ -162,28 +168,30 @@ module freelance_marketplace::marketplace {
     //     balance::value(&object::borrow<Freelancer>(freelancer_id, ctx))
     // }
 
-    // // New functions
-    // public entry fun add_funds_to_gig(gig_id: UID, amount: u64, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
-    //     let added_balance = balance::create(amount);
-    //     balance::join(&mut gig.escrow, added_balance);
-    // }
+    // New functions
+    public entry fun add_funds_to_gig(self: &mut FreelanceGig, amount: Coin<SUI>, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == self.client, ENotFreelancer);
+        let balance = coin::into_balance(amount);
+        balance::join(&mut self.escrow, balance);
+    }
 
-    // public entry fun request_refund(gig_id: UID, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
-    //     assert!(gig.workSubmitted == false, EInvalidWithdrawal);
+    public entry fun request_refund(self: &mut FreelanceGig, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == self.client, ENotFreelancer);
+        assert!(self.workSubmitted == false, EInvalidWithdrawal);
 
-    //     // Refund funds to the client
-    //     transfer::public_transfer(gig.escrow, gig.client);
+        let balance = balance::withdraw_all<SUI>(&mut self.escrow);
+        let coin = coin::from_balance<SUI>(balance, ctx);
 
-    //     // Reset gig state
-    //     gig.freelancer = 0x0;
-    //     gig.workSubmitted = false;
-    //     gig.dispute = false;
-    //     gig.escrow = balance::zero();
-    // }
+        // Refund funds to the client
+        transfer::public_transfer(coin, self.client);
+
+         // Reset gig state
+        self.freelancer = option::none();
+        self.workSubmitted = false;
+        self.dispute = false;
+    }
+
+    // Unused Function
 
     // public entry fun update_gig_deadline(gig_id: UID, new_deadline: u64, ctx: &mut TxContext) {
     //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
@@ -191,12 +199,14 @@ module freelance_marketplace::marketplace {
     //     // Additional logic to update the gig's deadline
     // }
 
-    // public entry fun mark_gig_complete(gig_id: UID, ctx: &mut TxContext) {
-    //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
-    //     assert!(tx_context::sender(ctx) == gig.freelancer, ENotFreelancer);
-    //     gig.workSubmitted = true;
-    //     // Additional logic to mark the gig as complete
-    // }
+    public entry fun mark_gig_complete(self: &mut FreelanceGig, ctx: &mut TxContext) {
+        let freelancer = option::borrow(&self.freelancer);
+        assert!(tx_context::sender(ctx) == *freelancer, ENotFreelancer);
+        self.workSubmitted = true;
+        // Additional logic to mark the gig as complete
+    }
+
+       // Unused Function
 
     // public entry fun extend_dispute_period(gig_id: UID, extension_days: u64, ctx: &mut TxContext) {
     //     let gig = object::borrow_mut<FreelanceGig>(gig_id, ctx);
