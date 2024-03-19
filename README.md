@@ -65,7 +65,7 @@ This scripts takes three parameters (in this particular order) - `version`, `env
 
 To donwload SUI binaries for codespace, run this command:
 ```
-./download-sui-binaries.sh "v1.15.0" "devnet" "ubuntu-x86_64"
+./download-sui-binaries.sh "v1.18.0" "devnet" "ubuntu-x86_64"
 ```
 and restart your terminal window.
 
