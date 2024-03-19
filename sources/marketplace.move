@@ -1,7 +1,6 @@
 module freelance_marketplace::freelance_marketplace {
 
     // Imports
-    use std::debug;
     use sui::transfer;
     use sui::sui::SUI;
     use sui::coin::{Self, Coin};
@@ -11,15 +10,12 @@ module freelance_marketplace::freelance_marketplace {
     use std::option::{Option, none, some, is_some, contains, borrow};
 
     // Errors
-    const ENotEnough: u64 = 0;
     const EInvalidBid: u64 = 1;
     const EInvalidWork: u64 = 2;
     const EDispute: u64 = 3;
     const EAlreadyResolved: u64 = 4;
     const ENotFreelancer: u64 = 5;
-    const EInsufficientFunds: u64 = 6;
     const EInvalidWithdrawal: u64 = 7;
-    const EInvalidUpdate: u64 = 8;
 
     // Struct definitions
     struct FreelanceGig has key, store {
@@ -46,6 +42,7 @@ module freelance_marketplace::freelance_marketplace {
 
     // Public - Entry functions
     public entry fun create_gig(description: vector<u8>, price: u64, ctx: &mut TxContext) {
+        
         let gig_id = object::new(ctx);
         transfer::share_object(FreelanceGig {
             id: gig_id,
@@ -76,7 +73,7 @@ module freelance_marketplace::freelance_marketplace {
 
     public entry fun resolve_dispute(gig: &mut FreelanceGig, resolved: bool, ctx: &mut TxContext) {
         assert!(gig.client == tx_context::sender(ctx), EDispute);
-        assert!(!gig.dispute, EAlreadyResolved);
+        assert!(gig.dispute, EAlreadyResolved);
         assert!(is_some(&gig.freelancer), EInvalidBid);
         let escrow_amount = balance::value(&gig.escrow);
         let escrow_coin = coin::take(&mut gig.escrow, escrow_amount, ctx);
@@ -159,10 +156,10 @@ module freelance_marketplace::freelance_marketplace {
         gig.dispute = false;
     }
 
-    public entry fun update_gig_deadline(gig: &mut FreelanceGig, new_deadline: u64, ctx: &mut TxContext) {
-        assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
-        // Additional logic to update the gig's deadline
-    }
+    // public entry fun update_gig_deadline(gig: &mut FreelanceGig, new_deadline: u64, ctx: &mut TxContext) {
+    //     assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
+    //     // Additional logic to update the gig's deadline
+    // }
 
     public entry fun mark_gig_complete(gig: &mut FreelanceGig, ctx: &mut TxContext) {
         assert!(contains(&gig.freelancer, &tx_context::sender(ctx)), ENotFreelancer);
@@ -170,9 +167,9 @@ module freelance_marketplace::freelance_marketplace {
         // Additional logic to mark the gig as complete
     }
 
-    public entry fun extend_dispute_period(gig: &mut FreelanceGig, extension_days: u64, ctx: &mut TxContext) {
-        assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
-        assert!(gig.dispute, EInvalidUpdate);
-        // Additional logic to extend the dispute period
-    }
+    // public entry fun extend_dispute_period(gig: &mut FreelanceGig, extension_days: u64, ctx: &mut TxContext) {
+    //     assert!(tx_context::sender(ctx) == gig.client, ENotFreelancer);
+    //     assert!(gig.dispute, EInvalidUpdate);
+    //     // Additional logic to extend the dispute period
+    // }
 }
